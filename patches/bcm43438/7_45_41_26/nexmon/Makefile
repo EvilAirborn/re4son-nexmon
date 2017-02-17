@@ -41,7 +41,7 @@ ifeq ($(shell uname -m),armv7l)
 	$(Q)make -C /lib/modules/$(shell uname -r)/build M=$$PWD/brcmfmac -j2 >log/driver.log
 else
 	@printf "\033[0;31m  BUILDING DRIVER \033[0m brcmfmac/brcmfmac.ko (details: log/driver.log)\n" $@
-	$(Q)make ARCH=arm CROSS_COMPILE=${CC} -C $KERN_MOD_DIR/build M=$$PWD/brcmfmac -j2 >log/driver.log
+	$(Q)make ARCH=arm CROSS_COMPILE=${CC} -C ${KERN_MOD_DIR}/build M=$$PWD/brcmfmac -j2 >log/driver.log
 endif
 
 obj/%.o: src/%.c
