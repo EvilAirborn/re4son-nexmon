@@ -10,6 +10,8 @@ export PLATFORMUNAME=$(uname -m)
 
 export NEXMON_ROOT=$(pwd)
 
+export KERN_MOD_DIR="/opt/kernel_builder_mod"
+
 if [ $HOSTUNAME == "Darwin" ]; then
     export CC=$NEXMON_ROOT/buildtools/gcc-arm-none-eabi-5_4-2016q2-osx/bin/arm-none-eabi-
     export CCPLUGIN=$NEXMON_ROOT/buildtools/gcc-nexmon-plugin-osx/nexmon.so
