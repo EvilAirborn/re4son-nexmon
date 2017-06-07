@@ -33,7 +33,7 @@
  **************************************************************************/
 
 #define IOCTL_ERROR                     -23
-#define IOCTL_SUCCESS                   0
+#define IOCTL_SUCCESS                     0
 
 // IOCTLs used by Nexmon
 #define NEX_GET_CAPABILITIES            400
@@ -50,6 +50,12 @@
 #define NEX_SET_SECURITYCOOKIE          411
 #define NEX_GET_WL_CNT                  412
 #define NEX_GET_VERSION_STRING          413
+#define NEX_TEST_ARGPRINTF              414
+#define NEX_GET_RSPEC_OVERRIDE          415
+#define NEX_SET_RSPEC_OVERRIDE          416
+#define NEX_CLEAR_CONSOLE               417
+#define NEX_GET_CHANSPEC_OVERRIDE       418
+#define NEX_SET_CHANSPEC_OVERRIDE       419
 
 // IOCTLs used in original firmware
 #define WLC_GET_MAGIC                     0
@@ -288,3 +294,5 @@
 #define WLC_GET_PUB                     232
 #define WLC_GET_KEY_PRIMARY             235
 #define WLC_SET_KEY_PRIMARY             236
+#define WLC_GET_VAR                     262     /* get value of named variable */
+#define WLC_SET_VAR                     263     /* set named variable to value */

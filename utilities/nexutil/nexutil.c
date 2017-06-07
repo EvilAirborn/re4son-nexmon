@@ -40,24 +40,32 @@
 #include <string.h>
 #include <byteswap.h>
 
+#include <types.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <sys/param.h> // for MIN macro
 
 #include <sys/ioctl.h>
+#include <arpa/inet.h>
 #ifdef BUILD_ON_RPI
 #include <linux/if.h>
 #else
 #include <net/if.h>
 #endif
 #include <stdbool.h>
+#define TYPEDEF_BOOL
 #include <errno.h>
 
 #include <wlcnt.h>
 
 #include <nexioctls.h>
 
-#define HEXDUMP_COLS 8
+#include <typedefs.h>
+#include <bcmwifi_channels.h>
+#include <b64.h>
+
+#define HEXDUMP_COLS 16
 
 #define IPADDR(a,b,c,d) ((d) << 24 | (c) << 16 | (b) << 8 | (a))
 
@@ -93,7 +101,11 @@ signed char     custom_cmd_set = -1;
 unsigned int    custom_cmd_buf_len = 4;
 void            *custom_cmd_buf = NULL;
 char            *custom_cmd_value = NULL;
+unsigned char   get_chanspec = 0;
+unsigned char   set_chanspec = 0;
+char            *set_chanspec_value = NULL;
 unsigned char   custom_cmd_value_int = false;
+unsigned char   custom_cmd_value_base64 = false;
 unsigned char   raw_output = false;
 unsigned int    dump_objmem_addr = 0;
 unsigned char   dump_objmem = false;
@@ -116,9 +128,11 @@ static struct argp_option options[] = {
     {"custom-cmd-buf-len", 'l', "INT", 0, "Custom command buffer length (default: 4)"},
     {"custom-cmd-value", 'v', "CHAR/INT", 0, "Initialization value for the buffer used by custom command"},
     {"custom-cmd-value-int", 'i', 0, 0, "Define that custom-cmd-value should be interpreted as integer"},
+    {"custom-cmd-value-base64", 'b', 0, 0, "Define that custom-cmd-value should be interpreted as base64 string"},
     {"raw-output", 'r', 0, 0, "Write raw output to stdout instead of hex dumping"},
     {"dump-wl_cnt", 'w', 0, 0, "Dump WL counters"},
     {"dump-objmem", 'o', "INT", 0, "Dumps objmem at addr INT"},
+    {"chanspec", 'k', "CHAR/INT", OPTION_ARG_OPTIONAL, "Set chanspec either as integer (e.g., 0x1001, set -i) or as string (e.g., 64/80)."},
     {"security-cookie", 'x', "INT", OPTION_ARG_OPTIONAL, "Set/Get security cookie"},
     {"use-udp-tunneling", 'X', "INT", 0, "Use UDP tunneling with security cookie INT"},
     {"broadcast-ip", 'B', "CHAR", 0, "Broadcast IP to use for UDP tunneling (default: 192.168.222.255)"},
@@ -178,12 +192,31 @@ parse_opt(int key, char *arg, struct argp_state *state)
             custom_cmd_buf_len = strtol(arg, NULL, 0);
             break;
 
+        case 'k':
+            if (arg) {
+                set_chanspec = true;
+                set_chanspec_value = arg;
+            } else {
+                get_chanspec = true;
+            }
+            break;
+
         case 'v':
             custom_cmd_value = arg;
             break;
 
         case 'i':
-            custom_cmd_value_int = true;
+            if (!custom_cmd_value_base64)
+                custom_cmd_value_int = true;
+            else
+                printf("ERR: you can only either use base64 or integer encoding.");
+            break;
+
+        case 'b':
+            if (!custom_cmd_value_int)
+                custom_cmd_value_base64 = true;
+            else
+                printf("ERR: you can only either use base64 or integer encoding.");
             break;
 
         case 'r':
@@ -326,6 +359,29 @@ main(int argc, char **argv)
         printf("securitycookie: %d\n", buf);
     }
 
+    if (get_chanspec) {
+        char charbuf[9] = "chanspec";
+        uint16 chanspec = 0;
+        ret = nex_ioctl(nexio, WLC_GET_VAR, charbuf, 9, false);
+        chanspec = *(uint16 *) charbuf;
+        printf("chanspec: 0x%04x, %s\n", chanspec, wf_chspec_ntoa(chanspec, charbuf));
+    }
+
+    if (set_chanspec) {
+        char charbuf[13] = "chanspec";
+        uint32 *chanspec = (uint32 *) &charbuf[9];
+
+        if (custom_cmd_value_int)
+            *chanspec = strtoul(set_chanspec_value, NULL, 0);
+        else
+            *chanspec = wf_chspec_aton(set_chanspec_value);
+
+        if (*chanspec == 0)
+            printf("invalid chanspec\n");
+        else
+            ret = nex_ioctl(nexio, WLC_SET_VAR, charbuf, 13, true);
+    }
+
     if (custom_cmd_set != -1) {
         custom_cmd_buf = malloc(custom_cmd_buf_len);
         if (!custom_cmd_buf)
@@ -333,21 +389,43 @@ main(int argc, char **argv)
 
         memset(custom_cmd_buf, 0, custom_cmd_buf_len);
 
-        if (custom_cmd_value)
-            if (custom_cmd_value_int)
-                *(int *) custom_cmd_buf = strtol(custom_cmd_value, NULL, 0);
-            else
-                strncpy(custom_cmd_buf, custom_cmd_value, custom_cmd_buf_len);
+        if (custom_cmd_set == 1 && raw_output) { // set command using raw input
+            //freopen(NULL, "rb", stdin);
+            fread(custom_cmd_buf, 1, custom_cmd_buf_len, stdin);
+        } else {
+            if (custom_cmd_value) {
+                if (custom_cmd_value_int) {
+                    *(uint32 *) custom_cmd_buf = strtoul(custom_cmd_value, NULL, 0);
+                } else if (custom_cmd_value_base64) {
+                    size_t decoded_len = 0;
+                    unsigned char *decoded = b64_decode_ex(custom_cmd_value, strlen(custom_cmd_value), &decoded_len);
+                    memcpy(custom_cmd_buf, decoded, MIN(decoded_len, custom_cmd_buf_len));
+                } else {
+                    strncpy(custom_cmd_buf, custom_cmd_value, custom_cmd_buf_len);
+                }
+            } else {
+                if (custom_cmd_value_int) {
+                    *(uint32 *) custom_cmd_buf = strtoul(custom_cmd_value, NULL, 0);
+                }
+            }
+        }
 
+        /* NOTICE: Using SDIO to communicate to the firmware, the maximum CDC message length 
+         * is limited to CDC_MAX_MSG_SIZE = ETHER_MAX_LEN = 1518, however only 1502 bytes 
+         * arrive in the ioctl function, the rest might be used for the ioctl header.
+         */
+        if (custom_cmd_buf_len > 1502 && custom_cmd_set)
+            fprintf(stderr, "WARN: Using SDIO, the ioctl payload length is limited to 1502 bytes.\n");
         ret = nex_ioctl(nexio, custom_cmd, custom_cmd_buf, custom_cmd_buf_len, custom_cmd_set);
 
-        if (custom_cmd_set == false)
+        if (custom_cmd_set == false) {
             if (raw_output) {
                 fwrite(custom_cmd_buf, sizeof(char), custom_cmd_buf_len, stdout);
                 fflush(stdout);
             } else {
                 hexdump(custom_cmd_buf, custom_cmd_buf_len);
             }
+        }
     }
 
     if (dump_objmem) {

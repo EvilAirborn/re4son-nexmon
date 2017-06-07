@@ -41,6 +41,7 @@
 #include <helper.h>             // useful helper functions
 #include <patcher.h>            // macros used to craete patches such as BLPatch, BPatch, ...
 #include <rates.h>              // rates used to build the ratespec for frame injection
+#include <nexioctls.h>          // ioctls added in the nexmon patch
 
 /**
  *  Setup a timer to schedule a function call
@@ -52,6 +53,44 @@ schedule_work(void *context, void *data, void *mainfn, int ms, int periodic)
     task = hndrte_init_timer(context, data, mainfn, 0);
     if (task) {
         if(!hndrte_add_timer(task, ms, periodic))
+            hndrte_free_timer(task);
+    }
+    return task;
+}
+
+struct delayed_task {
+    void *context;
+    void *data;
+    void *mainfn;
+    int ms;
+    int periodic;
+};
+
+static void
+perform_delayed_task(struct hndrte_timer *t)
+{
+    struct delayed_task *delayed_task = (struct delayed_task *) t->data;
+
+    schedule_work(delayed_task->context, delayed_task->data, delayed_task->mainfn, delayed_task->ms, delayed_task->periodic);
+    
+    free(t->data);
+}
+
+struct hndrte_timer *
+schedule_delayed_work(void *context, void *data, void *mainfn, int ms, int periodic, int delay_ms)
+{
+    struct hndrte_timer *task;
+    struct delayed_task *delayed_task = malloc(sizeof(struct delayed_task), 0);
+    
+    delayed_task->context = context;
+    delayed_task->data = data;
+    delayed_task->mainfn = mainfn;
+    delayed_task->ms = ms;
+    delayed_task->periodic = periodic;
+
+    task = hndrte_init_timer(context, delayed_task, perform_delayed_task, 0);
+    if (task) {
+        if(!hndrte_add_timer(task, delay_ms, 0))
             hndrte_free_timer(task);
     }
     return task;
@@ -213,3 +252,72 @@ bcm_mw_to_qdbm(unsigned short mw)
 
     return (qdbm);
 }
+
+void
+set_chanspec(struct wlc_info *wlc, unsigned short chanspec)
+{
+    unsigned int local_chanspec = chanspec;
+    wlc_iovar_op(wlc, "chanspec", 0, 0, &local_chanspec, 4, 1, 0);
+}
+
+unsigned int
+get_chanspec(struct wlc_info *wlc)
+{
+    unsigned int chanspec = 0;
+    wlc_iovar_op(wlc, "chanspec", 0, 0, &chanspec, 4, 0, 0);
+    return chanspec;
+}
+
+void
+set_mpc(struct wlc_info *wlc, uint32 mpc)
+{
+    wlc_iovar_op(wlc, "mpc", 0, 0, &mpc, 4, 1, 0);
+}
+
+uint32
+get_mpc(struct wlc_info *wlc)
+{
+    uint32 mpc = 0;
+
+    wlc_iovar_op(wlc, "mpc", 0, 0, &mpc, 4, 0, 0);
+    
+    return mpc;
+}
+
+void
+set_monitormode(struct wlc_info *wlc, uint32 monitor)
+{
+    wlc_ioctl(wlc, WLC_SET_MONITOR, &monitor, 4, 0);
+}
+
+void
+set_intioctl(struct wlc_info *wlc, uint32 cmd, uint32 arg)
+{
+    wlc_ioctl(wlc, cmd, &arg, 4, 0);
+}
+
+uint32
+get_intioctl(struct wlc_info *wlc, uint32 cmd)
+{
+    uint32 arg;
+    wlc_ioctl(wlc, cmd, &arg, 4, 0);
+    return arg;
+}
+
+#if NEXMON_CHIP == CHIP_VER_BCM4339
+void
+set_scansuppress(struct wlc_info *wlc, uint32 scansuppress)
+{
+    wlc_scan_ioctl(wlc->scan, WLC_SET_SCANSUPPRESS, &scansuppress, 4, 0);
+}
+
+uint32
+get_scansuppress(struct wlc_info *wlc)
+{
+    uint32 scansuppress = 0;
+
+    wlc_scan_ioctl(wlc->scan, WLC_GET_SCANSUPPRESS, &scansuppress, 4, 0);
+    
+    return scansuppress;
+}
+#endif

@@ -1,4 +1,4 @@
-![NexMon logo](https://github.com/seemoo-lab/bcm-public/raw/master/logo/nexmon-logo-color.png)
+![NexMon logo](https://github.com/seemoo-lab/nexmon/raw/master/gfx/nexmon.png)
 
 # What is nexmon?
 Nexmon is our C-based firmware patching framework for Broadcom/Cypress WiFi chips 
@@ -6,6 +6,9 @@ that enables you to write your own firmware patches, for example, to enable moni
 mode with radiotap headers and frame injection.
 
 Before we started to work on this repository, we developed patches for the Nexus 5 (with bcm4339 WiFi chip) in the [bcm-public](https://github.com/seemoo-lab/bcm-public)  repository and those for the Raspberry Pi 3 (with bcm43438 WiFi chip) in the [bcm-rpi3](https://github.com/seemoo-lab/bcm-rpi3) repository. To remove the development overhead of maintaining multiple separate repositories, we decided to merge them in this repository and add support for some additional devices. In contrast to the former repositories, here, you can only build the firmware patch without drivers and kernels. The Raspberry Pi 3 makes an exception, as here it is always required to also build the driver.
+
+# Give Feedback
+We setup a survey to learn about who uses Nexmon to which purpose and how we could improve Nexmon. We would be happy if every Nexmon user filled out this survey: https://nexmon.org/survey
 
 # WARNING
 Our software may damage your hardware and may void your hardware’s warranty! You use our tools at your own risk and responsibility! If you don't like these terms, don't use nexmon!
@@ -18,12 +21,13 @@ Our software may damage your hardware and may void your hardware’s warranty! Y
 # Supported Devices
 The following devices are currently supported by our nexmon firmware patch.
 
-WiFi Chip | Firmware Version | Used in           | Operating System |  M  | RT  |  I  | FP  | UC  | CT 
---------- | ---------------- | ----------------- | ---------------- | --- | --- | --- | --- | --- | ---
-bcm4330   | 5_90_100_41_sta  | Samsung Galaxy S2 | Cyanogenmod 13.0 |  X  |  X  |     |  X  |  X  |  O 
-bcm4339   | 6_37_34_43       | Nexus 5           | Android 6 Stock  |  X  |  X  |  X  |  X  |  X  |  O 
-bcm43438  | 7_45_41_26       | Raspberry Pi 3    | Raspbian 8       |  X  |  X  |  X  |  X  |  X  |  O 
-bcm4358   | 7_112_200_17_sta | Nexus 6P          | Android 7 Stock  |  X  |  X  |     |  X  |  X  |  O 
+WiFi Chip | Firmware Version | Used in           | Operating System     |  M  | RT  |  I  | FP  | UC  | CT 
+--------- | ---------------- | ----------------- | -------------------- | --- | --- | --- | --- | --- | ---
+bcm4330   | 5_90_100_41_sta  | Samsung Galaxy S2 | Cyanogenmod 13.0     |  X  |  X  |     |  X  |  X  |  O 
+bcm4339   | 6_37_34_43       | Nexus 5           | Android 6 Stock      |  X  |  X  |  X  |  X  |  X  |  O 
+bcm43438  | 7_45_41_26       | Raspberry Pi 3    | Raspbian 8           |  X  |  X  |  X  |  X  |  X  |  O 
+bcm4358   | 7_112_200_17_sta | Nexus 6P          | Android 7 Stock      |  X  |  X  |     |  X  |  X  |  O 
+bcm4358   | 7_112_201_3_sta  | Nexus 6P          | Android 7.1.2 Stock  |  X  |  X  |     |  X  |  X  |  O 
 
 ## Legend
 - M = Monitor Mode
@@ -36,7 +40,7 @@ bcm4358   | 7_112_200_17_sta | Nexus 6P          | Android 7 Stock  |  X  |  X  
 # Steps to create your own firmware patches
 
 ## Build patches for bcm4330, bcm4339 and bcm4358 using a x86 computer running Linux (e.g. Ubuntu 16.04)
-* Install some dependencies: `sudo apt-get install git gawk qpdf adb`
+* Install some dependencies: `sudo apt-get install git gawk qpdf adb flex bison`
 * **Only necessary for x86_64 systems**, install i386 libs: 
 
   ```
@@ -54,12 +58,13 @@ bcm4358   | 7_112_200_17_sta | Nexus 6P          | Android 7 Stock  |  X  |  X  
   * Install the patched firmware on your smartphone: `make install-firmware` (make sure your smartphone is connected to your machine beforehand)
 
 ### Using the Monitor Mode patch
-* Install at least *nexutil* and *libfakeioctl* from our utilities. The easiest way to do this is by using this app: https://play.google.com/store/apps/details?id=de.tu_darmstadt.seemoo.nexmon. But you can also build it from the source by executing `make` in the *utilties* folder (Note: you will need the Android NDK properly installed for this).
+* Install at least *nexutil* and *libfakeioctl* from our utilities. The easiest way to do this is by using this app: https://nexmon.org/app. But you can also build it from the source by executing `make` in the *utilties* folder (Note: you will need the Android NDK properly installed for this).
 * Connect to your Android phone using the ADB tools: `adb shell`
 * Make sure you are **not** connected to an access point
 * Use *nexutil* to enable monitor mode: `nexutil -m2`
 * At this point the monitor mode is active. There is no need to call *airmon-ng*. 
 * **Important:** Most tools need a Radiotap interface to work properly. *libfakeioctl* emulates this type of interface for you, therefore, use LD_PRELOAD to load this library when you call the favourite tool (e.g. tcpdump or airodump-ng): `LD_PRELOAD=libfakeioctl.so tcpdump -i wlan0`
+* *untested hint:* Thanks to XDA member ruleh, there is a bcmdhd driver patch to activate native monitor mode, see: https://github.com/ruleh/misc/tree/master/monitor
 
 ### Using nexutil over UDP on Nexus 5
 To be able to communicate with the firmware without root priviledges, we created a UDP interface accessible through the `libnexio`, which is also used by `nexutil`. You first have to prove to the firmware that you generally have root priviledges by setting a securtiy cookie. Then you can use it for UDP based connections. Your wlan0 interface also needs an IP address in the 192.168.222.0/24 range or you have to change the default nexutil `broadcast-ip`:
@@ -68,9 +73,9 @@ To be able to communicate with the firmware without root priviledges, we created
 * Start a UDP connection for example to activate monitor mode: `nexutil -X<cookie> -m1`
 
 ## Build patches for bcm43438 on the RPI3 using Raspbian 8 (recommended)
-* Make sure the following commands are executed as `root`
+* Make sure the following commands are executed as root: `sudo su`
 * Upgrade your Raspbian installation: `apt-get update && apt-get upgrade`
-* Install the kernel headers to build the driver and some dependencies: `sudo apt install raspberrypi-kernel-headers git libgmp3-dev gawk`
+* Install the kernel headers to build the driver and some dependencies: `sudo apt install raspberrypi-kernel-headers git libgmp3-dev gawk qpdf bison flex`
 * Clone our repository: `git clone https://github.com/seemoo-lab/nexmon.git`
 * Go into the root directory of our repository: `cd nexmon`
   * Setup the build environment: `source setup_env.sh`
@@ -87,7 +92,53 @@ To be able to communicate with the firmware without root priviledges, we created
 * In the default setting the brcmfmac driver can be used regularly as a WiFi station with out firmware. To activate monitor mode, execute `nexutil -m2`.
 * At this point the monitor mode is active. There is no need to call *airmon-ng*. 
 * The interface already set the Radiotap header, therefore, tools like *tcpdump* or *airodump-ng* can be used out of the box: `tcpdump -i wlan0`
-* **Note:** It is not possible to connect to an access point anymore using our modified driver and firmware, if you whant to go back to the default behaviour you will need to load the original driver and firmware.
+* *Optional*: To make the RPI3 load the modified driver after reboot:
+  * Find the path of the default driver at reboot: `modinfo brcmfmac` #the first line should be the full path
+  * Backup the original driver: `mv "<PATH TO THE DRIVER>/brcmfmac.ko" "<PATH TO THE DRIVER>/brcmfmac.ko.orig"`
+  * Copy the modified driver: `cp /home/pi/nexmon/patches/bcm43438/7_45_41_26/nexmon/brcmfmac/brcmfmac.ko "<PATH TO THE DRIVER>/"`
+  * Probe all modules and generate new dependency: `depmod -a`
+  * The new driver should be loaded by default after reboot: `reboot`
+  * **Note:** With this setting, you can toggle between Monitor mode and Managed mode with: `nexutil -m2` and `nexutil -m0`
+  * **Note:** It is possible to connect to an access point using our modified driver and firmware, just set the wireless interface in Managed mode.
+
+# How to build the utilities
+To build the utilities such as nexmon or dhdutil for Android, you need to download the **old** NDK version 11c,
+extract it and export the environment variable `NDK_ROOT` pointing to the directory where you extracted the NDK 
+files.
+
+# How to extract the ROM
+The Wi-Fi firmware consists of a read-only part stored in the ROM of every Wi-Fi chip and another part that is 
+loaded by the driver into the RAM. To analyze the whole firmware, one needs to extract the ROM. There are two 
+options to do this. Either you write a firmware patch that simply copies the contents of the ROM to RAM and then 
+you dump the RAM, or you directly dump the ROM after loading the regular firmware into the RAM. Even though, 
+the second option is easier, it only works, if the ROM can be directly accessed by the driver, which is not always 
+the case. Additionally, the firmware loaded into RAM can contain ROM patches that overlay the data stored in ROM. 
+By dumping the ROM after loading the original RAM firmware, it contains flash patches. Hence, the ROM needs to be 
+dumped again for every RAM firmware update to be consistent. As a conclusion, we prefer to dump the clean ROM after 
+copying it to RAM.
+
+## Dumping the ROM directly
+To dump the ROM directly, you need to know, where to find it and how large it is. On chips with Cortex-M3 it is 
+usually at upper addresses such as 0x800000, while on chips with Cortex-R4 it is likely at 0x0. Run dhdutil to 
+perform the dump:
+```
+dhdutil membytes -r 0x0 0xA0000 > rom.bin
+```
+
+## Dumping a clean ROM after copying to RAM
+For the BCM4339 and BCM4358, we created `rom_extraction` projects` that load a firmware patch that copies ROM to 
+RAM and them dumps it using dhdutil. To dump the ROM simply execute the following in the project directory:
+```
+make dump-rom
+```
+
+After ROM extraction, the `rom.bin` file will be copies to the corresponding firmwares subdirectory. To apply the 
+flash patches of a specific RAM firmware version, enter its directory and execute:
+```
+make rom.bin
+```
+
+
 
 # Structure of this repository
 * `buildtools`: Contains compilers and other tools to build the firmware
@@ -138,9 +189,15 @@ To be able to communicate with the firmware without root priviledges, we created
 * [monmob](https://github.com/tuter/monmob): Monitor Mode and Frame Injection for the bcm4325, bcm4329 and bcm4330
 * [imon](https://imon.site/): Penetration Testing for Apple devices with Broadcom WiFi Chip
 
+# Projects using nexmon
+If you know more projects that use nexmon, let us know and we will add a link.
+
+* [Project Zero](https://googleprojectzero.blogspot.de/2017/04/over-air-exploiting-broadcoms-wi-fi_4.html): Over The Air: Exploiting Broadcom's Wi-Fi Stack (Part 1)
+* [Project Zero](https://googleprojectzero.blogspot.de/2017/04/over-air-exploiting-broadcoms-wi-fi_11.html): Over The Air: Exploiting Broadcom's Wi-Fi Stack (Part 2) 
+
 # Read our papers
-* M. Schulz. [Nexmon - Wie man die eigene WLAN-Firmware hackt]
-(http://heise.de/-3538660), c't 26/2016, S. 168, Heise Verlag, 2016.
+* M. Schulz. [Nexmon - Wie man die eigene WLAN-Firmware hackt](http://heise.de/-3538660), 
+c't 26/2016, S. 168, Heise Verlag, 2016.
 * M. Schulz, D. Wegemer, M. Hollick. [DEMO: Using NexMon, the C-based WiFi 
 firmware modification framework](https://dl.acm.org/citation.cfm?id=2942419), 
 Proceedings of the 9th ACM Conference on Security and Privacy in Wireless and 
@@ -150,6 +207,25 @@ Modifications on Smartphones to Enable Monitor Mode]
 (http://arxiv.org/abs/1601.07077), CoRR, vol. abs/1601.07077, December 2015. 
 [bibtex](http://dblp.uni-trier.de/rec/bibtex/journals/corr/SchulzWH16)
 
+# Reference our project
+Any use of this project which results in an academic publication or other publication which includes a bibliography should include a citation to the Nexmon project:
+```
+@electronic{nexmon:project,
+	author = {Schulz, Matthias and Wegemer, Daniel and Hollick, Matthias},
+	title = {Nexmon: The C-based Firmware Patching Framework},
+	url = {https://nexmon.org},
+	year = {2017}
+}
+```
+
 # Contact
 * [Matthias Schulz](https://seemoo.tu-darmstadt.de/mschulz) <mschulz@seemoo.tu-darmstadt.de>
 * Daniel Wegemer <dwegemer@seemoo.tu-darmstadt.de>
+
+# Powered By
+## Secure Mobile Networking Lab (SEEMOO)
+<a href="https://www.seemoo.tu-darmstadt.de">![SEEMOO logo](https://github.com/seemoo-lab/nexmon/raw/master/gfx/seemoo.png)</a>
+## Networked Infrastructureless Cooperation for Emergency Response (NICER)
+<a href="https://www.nicer.tu-darmstadt.de">![NICER logo](https://github.com/seemoo-lab/nexmon/raw/master/gfx/nicer.png)</a>
+## Multi-Mechanisms Adaptation for the Future Internet (MAKI)
+<a href="http://www.maki.tu-darmstadt.de/">![MAKI logo](https://github.com/seemoo-lab/nexmon/raw/master/gfx/maki.png)</a>
