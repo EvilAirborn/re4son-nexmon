@@ -40,10 +40,10 @@ brcmfmac.ko: check-nexmon-setup-env
 ifeq ($(shell uname -m),armv7l)
 ifeq ($(findstring 4.9,$(shell uname -r)),4.9)
 	@printf "\033[0;31m  BUILDING DRIVER for kernel 4.9\033[0m brcmfmac/brcmfmac.ko (details: log/driver.log)\n" $@
-	$(Q)make ARCH=arm CROSS_COMPILE=${CC} -C ${KERN_MOD_DIR}/build M=$$PWD/brcmfmac_kernel49 -j2 >log/driver.log
+	$(Q)make -C /lib/modules/$(shell uname -r)/build M=$$PWD/brcmfmac_kernel49 -j2 >log/driver.log
 else ifeq ($(findstring 4.4,$(shell uname -r)),4.4)
 	@printf "\033[0;31m  BUILDING DRIVER for kernel 4.4\033[0m brcmfmac/brcmfmac.ko (details: log/driver.log)\n" $@
-	$(Q)make -C ARCH=arm CROSS_COMPILE=${CC} -C ${KERN_MOD_DIR}/build M=$$PWD/brcmfmac -j2 >log/driver.log
+	$(Q)make -C /lib/modules/$(shell uname -r)/build M=$$PWD/brcmfmac -j2 >log/driver.log
 endif
 else
 	$(warning Warning: Driver can not be compiled on this platform, execute the make command on a raspberry pi)
